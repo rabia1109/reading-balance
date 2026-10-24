@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>독서 잔고 진단</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&family=Nanum+Gothic+Coding:wght@400;700&display=swap">
+<style>
+/* Layout: 은행 독서통장 한 권 — 위조방지 무늬가 깔린 표지 띠, 줄 그은 장부 시트, 빨간 확인 도장 */
+:root{
+  --paper:#EAF0EB; --sheet:#FBFCF9; --ink:#1D2F2A; --muted:#5A6D67; --rule:#C9D7CF; --tint:#E1EBE4;
+  --teal:#2B6A5B; --on-teal:#FFFFFF; --stamp:#C23F2E; --amber:#A86E12; --good:#2F7A4A;
+  --f-display:"Jua","Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-body:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-data:"Nanum Gothic Coding","D2Coding",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#101816; --sheet:#17211E; --ink:#E2EBE6; --muted:#97A9A2; --rule:#2B3A36; --tint:#1E2C28;
+    --teal:#63B49E; --on-teal:#0D1513; --stamp:#EE7562; --amber:#E2AA4C; --good:#6CC08A; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#101816; --sheet:#17211E; --ink:#E2EBE6; --muted:#97A9A2; --rule:#2B3A36; --tint:#1E2C28;
+  --teal:#63B49E; --on-teal:#0D1513; --stamp:#EE7562; --amber:#E2AA4C; --good:#6CC08A; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.65;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 56px}
+.wrap{max-width:880px;margin:0 auto;display:grid;gap:18px}
+h1,h2,h3{font-family:var(--f-display);font-weight:400;text-wrap:balance;margin:0;line-height:1.25}
+p{margin:0}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--stamp);outline-offset:2px}
+
+/* 표지 */
+.cover{background:var(--teal);color:var(--on-teal);border-radius:14px;padding:22px 22px 18px;display:grid;gap:14px;
+  background-image:repeating-linear-gradient(32deg,color-mix(in srgb,var(--on-teal) 9%,transparent) 0 1px,transparent 1px 8px),
+  repeating-linear-gradient(-32deg,color-mix(in srgb,var(--on-teal) 7%,transparent) 0 1px,transparent 1px 8px)}
+.cover-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.cover h1{font-size:clamp(28px,6vw,40px)}
+.cover .acct{font-family:var(--f-data);font-size:13px;letter-spacing:.08em;opacity:.85}
+.cover p{opacity:.92;max-width:60ch}
+.owner{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:color-mix(in srgb,var(--on-teal) 14%,transparent);padding:10px 12px;border-radius:10px}
+.owner label{font-size:14px;display:flex;align-items:center;gap:6px}
+.owner input,.owner select{background:var(--sheet);color:var(--ink);border:0;border-radius:7px;padding:6px 10px;font-size:15px}
+.owner input{width:9em}
+
+/* 탭 */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:2px solid var(--rule)}
+.tab{border:1px solid var(--rule);border-bottom:0;background:var(--tint);padding:9px 14px;border-radius:10px 10px 0 0;font-family:var(--f-display);font-size:16px;margin-bottom:-2px;color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--sheet);color:var(--ink);border-color:var(--rule);border-bottom:2px solid var(--sheet)}
+.tab:disabled{opacity:.45;cursor:not-allowed}
+.tab .n{font-family:var(--f-data);font-size:12px;margin-right:4px;color:var(--stamp)}
+
+.sheet{background:var(--sheet);border:1px solid var(--rule);border-radius:12px;padding:22px;display:grid;gap:18px}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{border:1.5px solid var(--teal);background:var(--teal);color:var(--on-teal);padding:9px 16px;border-radius:9px;font-family:var(--f-display);font-size:16px}
+.btn.ghost{background:transparent;color:var(--teal)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.eyebrow{font-family:var(--f-data);font-size:12px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+
+/* 테스트 */
+.progress{display:flex;align-items:center;gap:10px;font-family:var(--f-data);font-size:13px;color:var(--muted)}
+.bar{flex:1;height:6px;border-radius:3px;background:var(--tint);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--teal);transition:width .25s}
+.q{font-size:clamp(20px,4.4vw,26px);font-family:var(--f-display);line-height:1.4;min-height:3em}
+.opts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media (max-width:560px){.opts{grid-template-columns:1fr 1fr}}
+.opt{border:1.5px solid var(--rule);background:var(--sheet);border-radius:10px;padding:14px 8px;display:grid;gap:4px;justify-items:center;text-align:center;font-size:15px}
+.opt b{font-family:var(--f-display);font-weight:400;font-size:22px;color:var(--teal)}
+.opt:hover{border-color:var(--teal)}
+.opt.on{border-color:var(--stamp);background:color-mix(in srgb,var(--stamp) 9%,var(--sheet))}
+.opt.on b{color:var(--stamp)}
+
+/* 장부 표 */
+.ledger-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th{font-family:var(--f-data);font-weight:700;font-size:12px;letter-spacing:.06em;color:var(--muted);text-align:left;padding:8px;border-bottom:2px solid var(--ink)}
+td{padding:9px 8px;border-bottom:1px dashed var(--rule);vertical-align:middle}
+td.num{font-family:var(--f-data);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px;background:var(--c)}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:6px 10px;font-size:14px;white-space:nowrap}
+.seg button+button{border-left:1px solid var(--rule)}
+.seg button.on{background:var(--teal);color:var(--on-teal)}
+.mini{height:8px;border-radius:4px;background:var(--tint);min-width:70px;overflow:hidden}
+.mini i{display:block;height:100%;border-radius:4px}
+.mini.p i{background:var(--teal)}
+.mini.a i{background:var(--stamp)}
+.stamp{display:inline-block;font-family:var(--f-display);font-size:14px;padding:1px 9px;border:2px solid currentColor;border-radius:6px;transform:rotate(-4deg);white-space:nowrap}
+.s-good{color:var(--good)} .s-mid{color:var(--amber)} .s-low{color:var(--stamp)}
+td select{background:var(--sheet);border:1px solid var(--rule);border-radius:7px;padding:4px 6px;font-size:14px;max-width:9.5em}
+.src{font-family:var(--f-data);font-size:11px;padding:1px 6px;border-radius:5px;background:var(--tint);color:var(--muted);white-space:nowrap}
+.src.none{background:color-mix(in srgb,var(--stamp) 14%,var(--sheet));color:var(--stamp)}
+
+textarea{width:100%;min-height:170px;border:1px solid var(--rule);border-radius:10px;padding:12px;background:var(--sheet);font-family:var(--f-data);font-size:14px;line-height:1.7;resize:vertical;
+  background-image:repeating-linear-gradient(to bottom,transparent 0 calc(1.7em + 0px - 1px),var(--rule) calc(1.7em - 1px) 1.7em);background-attachment:local;background-position:0 12px}
+.notice{border-left:3px solid var(--amber);padding:8px 12px;background:color-mix(in srgb,var(--amber) 9%,var(--sheet));font-size:14px;border-radius:0 8px 8px 0}
+
+/* 결과 */
+.hero{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;align-items:center}
+@media (max-width:680px){.hero{grid-template-columns:1fr}}
+.hero>*{min-width:0}
+.type{font-size:clamp(30px,7vw,44px);color:var(--teal)}
+.type-stamp{position:relative;display:inline-block}
+.type-stamp::after{content:"확인";position:absolute;right:-46px;top:-8px;font-family:var(--f-display);font-size:13px;color:var(--stamp);border:2px solid var(--stamp);border-radius:50%;width:40px;height:40px;display:grid;place-items:center;transform:rotate(12deg);opacity:.85}
+.meter{display:grid;gap:6px}
+.meter .bar{height:10px}
+.radar svg{width:100%;max-width:400px;height:auto;display:block;margin:0 auto}
+.legend{display:flex;gap:14px;justify-content:center;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:18px;height:3px;margin-right:6px;vertical-align:4px;background:var(--c)}
+.diag{display:grid;gap:10px}
+.diag li{margin-left:1.1em}
+.books{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.book{border:1px solid var(--rule);border-radius:10px;padding:12px 14px;display:grid;gap:6px;align-content:start;background:var(--sheet)}
+.book h4{margin:0;font-family:var(--f-display);font-weight:400;font-size:18px;line-height:1.3}
+.book .by{font-size:13px;color:var(--muted)}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--rule);color:var(--muted);white-space:nowrap}
+.chip.why{border-color:transparent;background:color-mix(in srgb,var(--teal) 13%,var(--sheet));color:var(--teal)}
+.group{display:grid;gap:10px}
+.group h3{font-size:20px;display:flex;align-items:center;gap:8px}
+.filters{display:grid;gap:8px}
+.chipbtn{border:1px solid var(--rule);background:var(--sheet);border-radius:999px;padding:5px 12px;font-size:14px}
+.chipbtn.on{background:var(--teal);color:var(--on-teal);border-color:var(--teal)}
+.banner{background:color-mix(in srgb,var(--amber) 14%,var(--sheet));border:1px dashed var(--amber);border-radius:10px;padding:8px 12px;font-size:14px}
+hr{border:0;border-top:1px dashed var(--rule);margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="cover">
+    <div class="cover-top">
+      <h1>독서 잔고 진단</h1>
+      <span class="acct">READING PASSBOOK · No. <span id="acctNo">4-0-00</span></span>
+    </div>
+    <p>내가 좋아하는 책 영역을 알아보고, 잔고가 바닥난 영역을 찾아서 내 학년에 맞는 책을 처방해 줘요.</p>
+    <div class="owner">
+      <label for="no">번호 <input id="no" type="number" inputmode="numeric" min="1" max="40" placeholder="00" style="width:4.5em"></label>
+      <label for="nm">닉네임 <input id="nm" placeholder="예: 책벌레" maxlength="10"></label>
+      <label for="gr">학년 <select id="gr"></select></label>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="test" aria-selected="true"><span class="n">01</span>취향 테스트</button>
+    <button class="tab" role="tab" data-tab="ledger" aria-selected="false"><span class="n">02</span>독서통장 분석</button>
+    <button class="tab" role="tab" data-tab="result" aria-selected="false" disabled><span class="n">03</span>진단 결과</button>
+    <button class="tab" role="tab" data-tab="shelf" aria-selected="false"><span class="n">04</span>추천 책장</button>
+  </nav>
+
+  <section class="sheet" id="v-test"></section>
+  <section class="sheet" id="v-ledger" hidden></section>
+  <section class="sheet" id="v-result" hidden></section>
+  <section class="sheet" id="v-shelf" hidden></section>
+</div>
+
+<script>
+/* ---------- 데이터 ---------- */
+const AREAS=[
+ {id:'lit',name:'동화·소설',c:'#3E7CB1',type:'이야기 여행자',desc:'인물의 마음을 따라가며 사건 속에 푹 빠지는 독자예요.'},
+ {id:'poem',name:'시·동시',c:'#B65FA0',type:'말맛 사냥꾼',desc:'짧은 글 속 리듬과 재미있는 표현을 잘 찾아내는 독자예요.'},
+ {id:'sci',name:'과학·수학',c:'#2E9C8F',type:'원리 탐구가',desc:'"왜 그럴까?"를 끝까지 따라가는 질문 많은 독자예요.'},
+ {id:'nature',name:'자연·환경',c:'#5E9B3A',type:'숲속 관찰자',desc:'동물·식물·지구를 꼼꼼히 들여다보는 관찰형 독자예요.'},
+ {id:'history',name:'역사·전통',c:'#B5772C',type:'시간 여행자',desc:'옛사람들의 삶과 사건을 궁금해하는 독자예요.'},
+ {id:'social',name:'사회·경제',c:'#D06A4A',type:'세상 탐험가',desc:'돈, 직업, 다른 나라처럼 세상이 돌아가는 방식에 관심 많은 독자예요.'},
+ {id:'people',name:'인물·전기',c:'#8B6BC9',type:'인생 수집가',desc:'실제 사람의 도전과 선택에서 힘을 얻는 독자예요.'},
+ {id:'art',name:'예술·생각',c:'#C9A227',type:'생각 화가',desc:'그림·음악을 즐기고 깊은 질문을 곱씹는 독자예요.'}
+];
+const A=Object.fromEntries(AREAS.map(a=>[a.id,a]));
+
+const QS=[
+ ['lit','주인공이 모험을 떠나는 이야기가 좋아요.'],
+ ['sci','"왜 그럴까?" 하고 원리가 궁금할 때가 많아요.'],
+ ['history','옛날 사람들은 어떻게 살았는지 궁금해요.'],
+ ['art','그림, 음악, 만들기에 관한 책을 보면 따라 해 보고 싶어요.'],
+ ['nature','동물이나 곤충, 식물을 오래 들여다보는 게 좋아요.'],
+ ['people','실제로 있었던 사람의 이야기에 감동받은 적이 있어요.'],
+ ['poem','짧고 리듬감 있는 글을 소리 내어 읽는 게 재미있어요.'],
+ ['social','돈을 어떻게 모으고 쓰는지 알고 싶어요.'],
+ ['sci','우주, 로봇, 실험, 발명 이야기를 보면 눈이 가요.'],
+ ['lit','다음 장면이 궁금해서 책을 못 덮은 적이 있어요.'],
+ ['nature','지구 환경을 지키는 방법이 궁금해요.'],
+ ['history','왕, 전쟁, 유물 이야기를 들으면 흥미로워요.'],
+ ['social','다른 나라 친구들은 어떻게 사는지 궁금해요.'],
+ ['poem','말장난이나 재미있는 표현을 찾으면 기억해 두고 싶어요.'],
+ ['people','어떤 사람이 꿈을 이룬 과정을 알고 싶어요.'],
+ ['art','"나는 누구일까?", "옳은 건 뭘까?" 같은 질문을 생각해 보는 게 좋아요.']
+];
+const SCALE=[['전혀 아니에요','✕'],['조금 아니에요','△'],['조금 그래요','○'],['정말 그래요','◎']];
+
+/* 도서 목록: band 저(1~2)/중(3~4)/고(5~6), f 그림책/글책/만화, a2 이어지는 영역, br 징검다리 책, rec:0 은 인식 전용 */
+const BOOKS=[
+ {t:'알사탕',au:'백희나',a:'lit',band:'저',f:'그림책',a2:'art'},
+ {t:'구름빵',au:'백희나',a:'lit',band:'저',f:'그림책'},
+ {t:'강아지똥',au:'권정생',a:'lit',band:'저',f:'그림책',a2:'nature'},
+ {t:'책 먹는 여우',au:'프란치스카 비어만',a:'lit',band:'저',f:'그림책',br:1},
+ {t:'만복이네 떡집',au:'김리리',a:'lit',band:'저',f:'글책',br:1},
+ {t:'고양이 해결사 깜냥',au:'홍민정',a:'lit',band:'저',f:'글책',br:1},
+ {t:'화요일의 두꺼비',au:'러셀 에릭슨',a:'lit',band:'중',f:'글책',a2:'nature',br:1},
+ {t:'나쁜 어린이표',au:'황선미',a:'lit',band:'중',f:'글책',br:1},
+ {t:'마당을 나온 암탉',au:'황선미',a:'lit',band:'중',f:'글책',a2:'nature'},
+ {t:'샬롯의 거미줄',au:'E. B. 화이트',a:'lit',band:'중',f:'글책',a2:'nature'},
+ {t:'이상한 과자 가게 전천당',au:'히로시마 레이코',a:'lit',band:'중',f:'글책',br:1},
+ {t:'프린들 주세요',au:'앤드루 클레먼츠',a:'lit',band:'중',f:'글책',a2:'social'},
+ {t:'엄마 사용법',au:'김성진',a:'lit',band:'중',f:'글책',a2:'art'},
+ {t:'찰리와 초콜릿 공장',au:'로알드 달',a:'lit',band:'고',f:'글책'},
+ {t:'푸른 사자 와니니',au:'이현',a:'lit',band:'고',f:'글책',a2:'nature'},
+ {t:'긴긴밤',au:'루리',a:'lit',band:'고',f:'글책',a2:'nature'},
+ {t:'원더',au:'R. J. 팔라시오',a:'lit',band:'고',f:'글책',a2:'art'},
+ {t:'몽실 언니',au:'권정생',a:'lit',band:'고',f:'글책',a2:'history'},
+ {t:'어린 왕자',au:'앙투안 드 생텍쥐페리',a:'lit',band:'고',f:'글책',a2:'art'},
+ {t:'넉 점 반',au:'윤석중',a:'poem',band:'저',f:'그림책'},
+ {t:'말놀이 동시집',au:'최승호',a:'poem',band:'저',f:'글책',br:1},
+ {t:'난 빨강',au:'박성우',a:'poem',band:'중',f:'글책'},
+ {t:'콩, 너는 죽었다',au:'김용택',a:'poem',band:'중',f:'글책',a2:'nature'},
+ {t:'어이없는 놈',au:'김개미',a:'poem',band:'고',f:'글책'},
+ {t:'하늘과 바람과 별과 시',au:'윤동주',a:'poem',band:'고',f:'글책',a2:'history'},
+ {t:'100층짜리 집',au:'이와이 도시오',a:'sci',band:'저',f:'그림책'},
+ {t:'우리 몸의 구멍',au:'허은미',a:'sci',band:'저',f:'그림책'},
+ {t:'신기한 스쿨버스',au:'조애너 콜',a:'sci',band:'중',f:'그림책',a2:'nature',br:1},
+ {t:'수학식당',au:'김희남',a:'sci',band:'중',f:'글책',a2:'lit'},
+ {t:'수학귀신',au:'한스 마그누스 엔첸스베르거',a:'sci',band:'고',f:'글책',a2:'lit'},
+ {t:'과학 공화국 물리 법정',au:'정완상',a:'sci',band:'고',f:'글책',a2:'social'},
+ {t:'나무는 좋다',au:'재니스 메이 우드리',a:'nature',band:'저',f:'그림책'},
+ {t:'세밀화로 그린 보리 어린이 곤충 도감',au:'보리 편집부',a:'nature',band:'중',f:'그림책',a2:'sci'},
+ {t:'파브르 곤충기',au:'장 앙리 파브르',a:'nature',band:'중',f:'글책',a2:'sci'},
+ {t:'시튼 동물기',au:'어니스트 톰프슨 시튼',a:'nature',band:'고',f:'글책',a2:'lit'},
+ {t:'나무를 심은 사람',au:'장 지오노',a:'nature',band:'고',f:'글책',a2:'art'},
+ {t:'해와 달이 된 오누이',au:'전래동화',a:'history',band:'저',f:'그림책',a2:'lit'},
+ {t:'팥죽 할멈과 호랑이',au:'조호상',a:'history',band:'저',f:'그림책',a2:'lit'},
+ {t:'마법의 시간여행',au:'메리 폽 어즈번',a:'history',band:'중',f:'글책',a2:'lit',br:1},
+ {t:'한국사 편지',au:'박은봉',a:'history',band:'고',f:'글책'},
+ {t:'용선생의 시끌벅적 한국사',au:'금현진 외',a:'history',band:'고',f:'글책'},
+ {t:'초정리 편지',au:'배유안',a:'history',band:'고',f:'글책',a2:'lit'},
+ {t:'책과 노니는 집',au:'이영서',a:'history',band:'고',f:'글책',a2:'lit'},
+ {t:'내가 라면을 먹을 때',au:'하세가와 요시후미',a:'social',band:'저',f:'그림책',a2:'art'},
+ {t:'세계가 만일 100명의 마을이라면',au:'이케다 가요코',a:'social',band:'중',f:'그림책',a2:'sci'},
+ {t:'열두 살에 부자가 된 키라',au:'보도 섀퍼',a:'social',band:'고',f:'글책',a2:'lit'},
+ {t:'왜 세계의 절반은 굶주리는가',au:'장 지글러',a:'social',band:'고',f:'글책'},
+ {t:'꽃들에게 희망을',au:'트리나 폴러스',a:'art',band:'중',f:'그림책',a2:'lit'},
+ {t:'점',au:'피터 H. 레이놀즈',a:'art',band:'저',f:'그림책'},
+ {t:'틀려도 괜찮아',au:'마키타 신지',a:'art',band:'저',f:'그림책'},
+ {t:'프레드릭',au:'레오 리오니',a:'art',band:'저',f:'그림책',a2:'poem'},
+ {t:'아낌없이 주는 나무',au:'셸 실버스타인',a:'art',band:'중',f:'그림책',a2:'lit'},
+ {t:'행복한 청소부',au:'모니카 페트',a:'art',band:'중',f:'그림책',a2:'poem'},
+ {t:'나는 말랄라',au:'말랄라 유사프자이',a:'people',band:'고',f:'글책',a2:'social'},
+ {t:'안네의 일기',au:'안네 프랑크',a:'people',band:'고',f:'글책',a2:'history'},
+ {t:'사흘만 볼 수 있다면',au:'헬렌 켈러',a:'people',band:'고',f:'글책',a2:'art'},
+ /* 인식 전용 (아이들이 많이 빌리는 책) */
+ {t:'흔한남매',a:'lit',f:'만화',rec:0},
+ {t:'Why?',a:'sci',f:'만화',rec:0},
+ {t:'Who?',a:'people',f:'만화',rec:0},
+ {t:'마법천자문',a:'lit',f:'만화',rec:0},
+ {t:'엉덩이 탐정',a:'lit',f:'그림책',rec:0},
+ {t:'설민석의 한국사 대모험',a:'history',f:'만화',rec:0},
+ {t:'신비아파트',a:'lit',f:'만화',rec:0},
+ {t:'수상한 아파트',a:'lit',f:'글책',rec:0},
+ {t:'해리 포터',a:'lit',f:'글책',rec:0}
+];
+
+const KW={
+ people:['위인','인물','자서전','세종','이순신','안중근','유관순','장영실','김구','신사임당','정약용','헬렌','아인슈타인','에디슨','링컨','간디','말랄라','나이팅게일','퀴리','who'],
+ history:['역사','한국사','세계사','조선','고려','삼국','고구려','백제','신라','가야','발해','독립','임진왜란','전쟁','임금','전래','옛이야기','옛날','문화재','유물','궁궐','선비','시간여행'],
+ sci:['과학','수학','실험','우주','로봇','공룡','인체','물리','화학','발명','기계','컴퓨터','코딩','인공지능','행성','태양계','별자리','원리','도형','숫자','계산','why','사이언스','에너지','화산','지진','날씨'],
+ nature:['동물','식물','곤충','나무','숲','바다','환경','지구','기후','생태','꽃','물고기','도감','쓰레기','플라스틱','생물','개구리','나비','고래','상어'],
+ social:['경제','부자','용돈','직업','사회','세계','나라','지구촌','인권','헌법','정치','선거','뉴스','다문화','마을','민주','돈'],
+ poem:['동시','시집','동요','말놀이'],
+ art:['미술','화가','음악','피아노','예술','디자인','만들기','종이접기','철학','생각','질문','감정','마음'],
+ lit:['동화','소설','모험','마법','탐정','비밀','친구','학교','우리반','짝꿍','가족','엄마','아빠','할머니','할아버지','왕국','왕자','공주','요정','괴물','유령','귀신','편의점','해결사','수상한','이상한','고양이','강아지']
+};
+const PRIORITY=['people','history','sci','nature','social','poem','art','lit'];
+const COMIC=['why','who','흔한남매','마법천자문','만화','코믹','쿠키런','브레드이발소','신비아파트','놓지마','좀비고','설민석','에그박사'];
+const EXAMPLE=`흔한남매 11
+Why? 우주
+알사탕
+만복이네 떡집
+엉덩이 탐정
+Why? 인체
+신기한 스쿨버스
+고양이 해결사 깜냥
+공룡 대탐험
+흔한남매 12
+Why? 우주`;
+
+/* ---------- 상태 ---------- */
+const S={name:'',num:null,grade:4,step:0,ans:{},exp:{},fmt:null,testDone:false,rows:[],ledgerUsed:false,example:true,tab:'test',
+  shelfBand:null,shelfArea:'all'};
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm=s=>String(s).toLowerCase().replace(/[^가-힣a-z0-9]/g,'');
+const bandOf=g=>g<=2?'저':g<=4?'중':'고';
+const BAND_NAME={'저':'저학년(1~2)','중':'중학년(3~4)','고':'고학년(5~6)'};
+
+/* ---------- 헤더 ---------- */
+const gr=$('#gr');
+for(let g=1;g<=6;g++){const o=document.createElement('option');o.value=g;o.textContent=g+'학년';if(g===4)o.selected=true;gr.appendChild(o)}
+function acct(){$('#acctNo').textContent=`${S.grade}-${S.num?String(S.num).padStart(2,'0'):'00'}`}
+function who(){return [S.num?`${S.num}번`:'',S.name].filter(Boolean).join(' ')||'이름 없는 독자'}
+$('#nm').addEventListener('input',e=>{S.name=e.target.value.trim();if(S.tab==='result')renderResult()});
+$('#no').addEventListener('input',e=>{const n=parseInt(e.target.value,10);S.num=n>0&&n<100?n:null;acct();if(S.tab==='result')renderResult()});
+gr.addEventListener('change',e=>{S.grade=+e.target.value;acct();if(S.tab==='result')renderResult();if(S.tab==='shelf'){S.shelfBand=bandOf(S.grade);renderShelf()}});
+acct();
+
+/* ---------- 탭 ---------- */
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));
+function go(t){
+  S.tab=t;
+  document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  ['test','ledger','result','shelf'].forEach(k=>$('#v-'+k).hidden=k!==t);
+  if(t==='result')renderResult();
+  if(t==='shelf'){if(!S.shelfBand)S.shelfBand=bandOf(S.grade);renderShelf()}
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function enableResult(){$('.tab[data-tab="result"]').disabled=false}
+
+/* ---------- 01 취향 테스트 ---------- */
+const N=QS.length;
+function renderTest(){
+  const v=$('#v-test');const st=S.step;
+  if(st===0){
+    v.innerHTML=`<div class="eyebrow">STEP 1 · 취향 테스트</div>
+    <h2>나는 어떤 책에 끌리는 독자일까?</h2>
+    <p class="muted">문장 ${N}개를 읽고 나와 얼마나 비슷한지 골라요. 그다음 최근 한 달 동안 읽은 책을 영역별로 체크하면, 잔고가 넉넉한 영역과 바닥난 영역을 알려 줘요. 5분이면 끝나요.</p>
+    <div class="ledger-wrap"><table><thead><tr><th>영역</th><th>이런 책이에요</th></tr></thead><tbody>
+    ${AREAS.map(a=>`<tr><td style="white-space:nowrap"><span class="dot" style="--c:${a.c}"></span>${a.name}</td><td class="muted small">${areaHint(a.id)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="row"><button class="btn" id="startBtn">테스트 시작</button><span class="muted small">위쪽 표지에 번호, 닉네임, 학년을 먼저 적어 주세요.</span></div>`;
+    $('#startBtn').onclick=()=>{S.step=1;renderTest()};
+    return;
+  }
+  if(st>=1&&st<=N){
+    const [area,text]=QS[st-1];const cur=S.ans[st];
+    v.innerHTML=`<div class="progress"><span>${String(st).padStart(2,'0')} / ${N}</span><div class="bar"><i style="width:${st/(N+2)*100}%"></i></div></div>
+    <p class="q">${esc(text)}</p>
+    <div class="opts">${SCALE.map((s,i)=>`<button class="opt${cur===i+1?' on':''}" data-v="${i+1}"><b>${s[1]}</b>${s[0]}</button>`).join('')}</div>
+    <div class="row"><button class="btn ghost" id="back">← 이전</button></div>`;
+    v.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{S.ans[st]=+b.dataset.v;b.classList.add('on');setTimeout(()=>{S.step++;renderTest()},160)});
+    $('#back').onclick=()=>{S.step--;renderTest()};
+    return;
+  }
+  if(st===N+1){
+    v.innerHTML=`<div class="progress"><span>잔고 확인</span><div class="bar"><i style="width:${(N+1)/(N+2)*100}%"></i></div></div>
+    <h2>최근 한 달 동안 읽은 책을 영역별로 체크해요</h2>
+    <p class="muted small">정확하지 않아도 괜찮아요. 떠오르는 대로 골라요.</p>
+    <div class="ledger-wrap"><table><thead><tr><th>영역</th><th style="text-align:right">읽은 권수</th></tr></thead><tbody>
+    ${AREAS.map(a=>`<tr><td><span class="dot" style="--c:${a.c}"></span>${a.name}</td><td style="text-align:right"><span class="seg" data-a="${a.id}">
+      ${['0권','1~2권','3권 이상'].map((l,i)=>`<button class="${S.exp[a.id]===i?'on':''}" data-v="${i}">${l}</button>`).join('')}</span></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="row"><button class="btn ghost" id="back">← 이전</button><button class="btn" id="next" ${Object.keys(S.exp).length<8?'disabled':''}>다음</button>
+    <span class="muted small" id="left"></span></div>`;
+    const upd=()=>{const n=8-Object.keys(S.exp).length;$('#next').disabled=n>0;$('#left').textContent=n>0?`${n}개 영역이 남았어요`:''};
+    v.querySelectorAll('.seg').forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+      S.exp[sg.dataset.a]=+b.dataset.v;sg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));upd()}));
+    upd();
+    $('#back').onclick=()=>{S.step--;renderTest()};
+    $('#next').onclick=()=>{S.step++;renderTest()};
+    return;
+  }
+  if(st===N+2){
+    const F=[['그림책','그림책','그림이 많고 글이 짧은 책'],['만화','학습만화·만화','Why?, 흔한남매 같은 책'],['글책','글이 많은 책','동화책, 지식책'],['골고루','골고루','그때그때 달라요']];
+    v.innerHTML=`<div class="progress"><span>마지막 질문</span><div class="bar"><i style="width:100%"></i></div></div>
+    <p class="q">도서관에서 내가 가장 자주 빌리는 책은?</p>
+    <div class="opts">${F.map(f=>`<button class="opt${S.fmt===f[0]?' on':''}" data-v="${f[0]}"><b>${f[1]}</b><span class="small muted">${f[2]}</span></button>`).join('')}</div>
+    <div class="row"><button class="btn ghost" id="back">← 이전</button></div>`;
+    v.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{S.fmt=b.dataset.v;S.testDone=true;enableResult();S.step=N+3;renderTest();go('result')});
+    $('#back').onclick=()=>{S.step--;renderTest()};
+    return;
+  }
+  v.innerHTML=`<div class="eyebrow">STEP 1 · 완료</div><h2>테스트를 마쳤어요</h2>
+  <p class="muted">진단 결과 탭에서 결과를 볼 수 있어요. 독서통장 제목까지 넣으면 실제 읽은 기록으로 더 정확하게 진단해요.</p>
+  <div class="row"><button class="btn" id="toRes">진단 결과 보기</button><button class="btn ghost" id="toLed">독서통장 제목 넣기</button><button class="btn ghost" id="again">다시 하기</button></div>`;
+  $('#toRes').onclick=()=>go('result');$('#toLed').onclick=()=>go('ledger');
+  $('#again').onclick=()=>{S.ans={};S.exp={};S.fmt=null;S.testDone=false;S.step=0;renderTest()};
+}
+function areaHint(id){return{lit:'창작동화, 모험·판타지, 학교·가족 이야기',poem:'동시집, 말놀이, 노랫말',sci:'우주, 인체, 실험, 수학 이야기',nature:'동물·식물·곤충, 도감, 환경',history:'한국사, 옛이야기·전래동화, 역사 동화',social:'돈과 경제, 직업, 세계 여러 나라, 인권',people:'위인전, 자서전, 실제 인물 이야기',art:'미술·음악, 철학 그림책, 마음과 생각'}[id]}
+
+/* ---------- 02 독서통장 분석 ---------- */
+function parseTitles(txt){
+  const out=new Map();
+  txt.split(/[\n,]+/).forEach(line=>{
+    let t=line.replace(/^\s*(\d{1,2}[\/.\-]\d{1,2}\.?|\d+[.)])\s*/,'').replace(/[『』「」<>《》"“”]/g,'').trim();
+    if(!t)return;const k=norm(t);if(!k)return;
+    if(out.has(k))out.get(k).n++;else out.set(k,{title:t,key:k,n:1});
+  });
+  return [...out.values()].map(r=>Object.assign(r,classify(r.title)));
+}
+function classify(title){
+  const k=norm(title);
+  const hit=BOOKS.filter(b=>{const bk=norm(b.t);return bk.length>=2&&(k.includes(bk)||(k.length>=4&&bk.includes(k)))}).sort((x,y)=>norm(y.t).length-norm(x.t).length)[0];
+  if(hit)return{area:hit.a,fmt:hit.f,src:'목록'};
+  const sc={};PRIORITY.forEach(a=>sc[a]=KW[a].filter(w=>k.includes(norm(w))).length);
+  let best=null;PRIORITY.forEach(a=>{if(sc[a]>0&&(!best||sc[a]>sc[best]))best=a});
+  const fmt=COMIC.some(w=>k.includes(w))?'만화':'모름';
+  return best?{area:best,fmt,src:'추정'}:{area:'none',fmt,src:'미분류'};
+}
+function renderLedger(){
+  const v=$('#v-ledger');
+  v.innerHTML=`<div class="eyebrow">STEP 2 · 독서통장 분석</div>
+  <h2>독서통장에 적힌 책 제목으로 진단해요</h2>
+  <p class="muted small">한 줄에 한 권씩 붙여 넣어요. 날짜·번호가 앞에 붙어 있어도 알아서 지워요. 같은 책을 여러 번 적으면 다시 읽은 횟수로 세요.</p>
+  ${S.example?`<div class="notice">아래는 <b>예시 목록</b>이에요. 지우고 학생 독서통장의 제목을 붙여 넣으세요.</div>`:''}
+  <label for="titles" class="small muted">책 제목</label>
+  <textarea id="titles" spellcheck="false">${esc(S.rawTitles??EXAMPLE)}</textarea>
+  <div class="row"><button class="btn" id="analyze">분석하기</button><button class="btn ghost" id="clear">비우기</button></div>
+  <div id="ledgerOut" class="group"></div>`;
+  $('#analyze').onclick=()=>{S.rawTitles=$('#titles').value;S.example=$('#titles').value.trim()===EXAMPLE.trim();S.rows=parseTitles(S.rawTitles);S.ledgerUsed=S.rows.length>0;if(S.ledgerUsed)enableResult();renderLedger()};
+  $('#clear').onclick=()=>{S.rawTitles='';S.example=false;S.rows=[];S.ledgerUsed=false;renderLedger();$('#titles').focus()};
+  renderLedgerTable();
+}
+function renderLedgerTable(){
+  const o=$('#ledgerOut');if(!S.rows.length){o.innerHTML='';return}
+  const total=S.rows.reduce((s,r)=>s+r.n,0);const unk=S.rows.filter(r=>r.area==='none').length;
+  o.innerHTML=`<hr><div class="row" style="justify-content:space-between"><h3>입금 내역 · ${S.rows.length}종 ${total}권</h3>
+  <button class="btn" id="toRes2">진단 결과 보기 →</button></div>
+  ${unk?`<div class="notice">영역을 찾지 못한 책이 <b>${unk}권</b> 있어요. 빨간 표시가 있는 줄에서 영역을 직접 골라 주세요. 그림책인지 만화인지도 고쳐 주면 형태 진단이 정확해져요.</div>`:''}
+  <div class="ledger-wrap"><table><thead><tr><th>책 제목</th><th style="text-align:right">권</th><th>영역</th><th>형태</th><th>판단</th></tr></thead><tbody>
+  ${S.rows.map((r,i)=>`<tr><td style="min-width:9em">${esc(r.title)}</td><td class="num">${r.n}</td>
+    <td><select data-i="${i}" data-k="area" aria-label="영역">${[['none','— 선택 —'],...AREAS.map(a=>[a.id,a.name])].map(([id,n])=>`<option value="${id}"${r.area===id?' selected':''}>${n}</option>`).join('')}</select></td>
+    <td><select data-i="${i}" data-k="fmt" aria-label="형태">${['모름','그림책','글책','만화'].map(f=>`<option${r.fmt===f?' selected':''}>${f}</option>`).join('')}</select></td>
+    <td><span class="src${r.area==='none'?' none':''}">${r.src}</span></td></tr>`).join('')}
+  </tbody></table></div>
+  <p class="muted small">판단: <b>목록</b>은 앱에 들어 있는 도서 목록에서 찾은 책, <b>추정</b>은 제목 낱말로 짐작한 것, <b>직접</b>은 선생님이 고친 것이에요.</p>`;
+  o.querySelectorAll('select').forEach(s=>s.onchange=()=>{const r=S.rows[+s.dataset.i];r[s.dataset.k]=s.value;r.src='직접';renderLedgerTable()});
+  $('#toRes2').onclick=()=>go('result');
+}
+
+/* ---------- 계산 ---------- */
+function compute(){
+  const pref={};let hasPref=false;
+  AREAS.forEach(a=>{const vals=QS.map((q,i)=>q[0]===a.id?S.ans[i+1]:null).filter(x=>x);if(vals.length===2){hasPref=true;pref[a.id]=Math.round(vals.reduce((s,x)=>s+x-1,0)/6*100)}else pref[a.id]=null});
+  const actual={},raw={};let source=null;
+  const counted=S.rows.filter(r=>r.area!=='none');
+  if(S.ledgerUsed&&counted.length){
+    source='ledger';const tot=counted.reduce((s,r)=>s+r.n,0);
+    AREAS.forEach(a=>{raw[a.id]=counted.filter(r=>r.area===a.id).reduce((s,r)=>s+r.n,0);actual[a.id]=Math.min(100,Math.round(raw[a.id]/tot/0.25*100))});
+  }else if(S.testDone){
+    source='test';AREAS.forEach(a=>{raw[a.id]=[0,1.5,3.5][S.exp[a.id]??0];actual[a.id]=(S.exp[a.id]??0)*50});
+  }
+  if(!source)return null;
+  const sum=Object.values(raw).reduce((s,x)=>s+x,0)||1;
+  let H=0;Object.values(raw).forEach(x=>{if(x>0){const p=x/sum;H-=p*Math.log(p)}});
+  const balance=Math.round(H/Math.log(8)*100);
+  const status=id=>actual[id]>=60?'good':actual[id]>=25?'mid':'low';
+  const sorted=[...AREAS].sort((x,y)=>(actual[x.id]-actual[y.id])||((pref[x.id]??50)-(pref[y.id]??50)));
+  let lacking=sorted.filter(a=>status(a.id)==='low').slice(0,3);let relative=false;
+  if(!lacking.length){lacking=sorted.slice(0,2);relative=true}
+  const favArea=hasPref?[...AREAS].sort((x,y)=>(pref[y.id]-pref[x.id])||(actual[y.id]-actual[x.id]))[0]:[...AREAS].sort((x,y)=>actual[y.id]-actual[x.id])[0];
+  // 형태
+  let pic=0,com=0,known=0;
+  S.rows.forEach(r=>{if(r.fmt!=='모름'){known+=r.n;if(r.fmt==='그림책')pic+=r.n;if(r.fmt==='만화')com+=r.n}});
+  const fromLedger=S.ledgerUsed&&known>=3;
+  const picHeavy=fromLedger?pic/known>=0.5:S.fmt==='그림책';
+  const comicHeavy=fromLedger?com/known>=0.4:S.fmt==='만화';
+  return{pref,hasPref,actual,raw,source,balance,status,lacking,relative,fav:favArea,picHeavy,comicHeavy,fmtShare:fromLedger?{pic:Math.round(pic/known*100),com:Math.round(com/known*100),text:Math.round((known-pic-com)/known*100)}:null};
+}
+function recommend(R,areaId,n=3,exclude=new Set()){
+  const band=bandOf(S.grade),order=['저','중','고'],bi=order.indexOf(band);
+  const read=new Set(S.rows.map(r=>r.key));
+  return BOOKS.filter(b=>b.rec!==0&&(b.a===areaId||b.a2===areaId)&&!exclude.has(b.t)&&![...read].some(k=>k.includes(norm(b.t))))
+    .map(b=>{let s=0;const d=Math.abs(order.indexOf(b.band)-bi);s+=d===0?6:d===1?(order.indexOf(b.band)<bi?2:3):0;
+      if(b.a===areaId)s+=2;
+      const reasons=[];
+      if(R.fav&&(b.a===R.fav.id||b.a2===R.fav.id)&&R.fav.id!==areaId){s+=3;reasons.push(`좋아하는 ${A[R.fav.id].name}와 이어져요`)}
+      if(R.picHeavy&&b.br){s+=3;reasons.push('그림책에서 글책으로 건너가는 징검다리')}
+      if(R.picHeavy&&!b.br&&b.f==='그림책'&&bi>0)s-=1;
+      if(!R.picHeavy&&bi>0&&b.f==='글책')s+=1;
+      if(d>0)reasons.push(order.indexOf(b.band)<bi?'쉽게 시작하기 좋아요':'조금 도전해 볼 책');
+      return{b,s,reasons}}).sort((x,y)=>y.s-x.s).slice(0,n);
+}
+
+/* ---------- 레이더 ---------- */
+function radar(series){
+  const cx=190,cy=170,R=112,n=AREAS.length;
+  const pt=(i,v)=>{const ang=-Math.PI/2+i*2*Math.PI/n;return[cx+Math.cos(ang)*R*v/100,cy+Math.sin(ang)*R*v/100]};
+  let g='';
+  [25,50,75,100].forEach(l=>{g+=`<polygon points="${AREAS.map((_,i)=>pt(i,l).join(',')).join(' ')}" fill="none" stroke="var(--rule)" stroke-width="1"/>`});
+  AREAS.forEach((a,i)=>{const[x,y]=pt(i,100);g+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--rule)"/>`;
+    const[lx,ly]=pt(i,124);const anchor=Math.abs(lx-cx)<8?'middle':lx>cx?'start':'end';
+    g+=`<text x="${lx}" y="${ly+5}" text-anchor="${anchor}" font-size="13" fill="var(--ink)" font-family="Gowun Dodum, sans-serif">${a.name}</text>`});
+  series.forEach(s=>{if(!s.vals)return;const pts=AREAS.map((a,i)=>pt(i,Math.max(4,s.vals[a.id]??0)).join(',')).join(' ');
+    g+=`<polygon points="${pts}" fill="${s.color}" fill-opacity=".14" stroke="${s.color}" stroke-width="2.5" ${s.dash?'stroke-dasharray="6 4"':''} stroke-linejoin="round"/>`;
+    AREAS.forEach((a,i)=>{const[x,y]=pt(i,Math.max(4,s.vals[a.id]??0));g+=`<circle cx="${x}" cy="${y}" r="3.5" fill="${s.color}"/>`})});
+  return`<svg viewBox="0 0 380 340" role="img" aria-label="영역별 독서 그래프">${g}</svg>`;
+}
+
+/* ---------- 03 결과 ---------- */
+function bookCard(x){const b=x.b;return`<article class="book"><h4>${esc(b.t)}</h4><div class="by">${esc(b.au)}</div>
+  <div class="chips"><span class="chip">${BAND_NAME[b.band]}</span><span class="chip">${b.f}</span><span class="chip"><span class="dot" style="--c:${A[b.a].c}"></span>${A[b.a].name}</span></div>
+  ${x.reasons?.length?`<div class="chips">${x.reasons.map(r=>`<span class="chip why">${r}</span>`).join('')}</div>`:''}</article>`}
+function renderResult(){
+  const v=$('#v-result');const R=compute();
+  if(!R){v.innerHTML=`<h2>아직 진단할 기록이 없어요</h2><p class="muted">취향 테스트를 하거나 독서통장 제목을 분석해 주세요.</p>`;return}
+  const nm=who();const ST={good:['넉넉','s-good'],mid:['보통','s-mid'],low:['부족','s-low']};
+  const srcText=R.source==='ledger'?`독서통장 ${S.rows.reduce((s,r)=>s+r.n,0)}권 기록`:'테스트의 읽은 권수 체크';
+  const balWord=R.balance>=80?'골고루 읽고 있어요':R.balance>=55?'조금 한쪽으로 기울었어요':'편식이 심한 편이에요';
+  const used=new Set();
+  const lackHtml=R.lacking.map(a=>{const recs=recommend(R,a.id,3,used);recs.forEach(x=>used.add(x.b.t));
+    return`<div class="group"><h3><span class="dot" style="--c:${a.c}"></span>${a.name} 잔고 채우기</h3>
+    ${recs.length?`<div class="books">${recs.map(bookCard).join('')}</div>`:`<p class="muted small">이 영역은 앱 목록에 ${BAND_NAME[bandOf(S.grade)]} 책이 아직 없어요. 학교 도서관에서 함께 골라 보세요.</p>`}</div>`}).join('');
+  const lvl=BOOKS.filter(b=>b.rec!==0&&b.a===R.fav.id&&b.f==='글책'&&!used.has(b.t)&&['저','중','고'].indexOf(b.band)>=['저','중','고'].indexOf(bandOf(S.grade))).slice(0,2).map(b=>({b,reasons:['좋아하는 영역 한 단계 위']}));
+  let fmtMsg='';
+  if(R.picHeavy)fmtMsg=`<li><b>그림책 비중이 높아요.</b> 그림책도 훌륭한 책이지만, 글 읽는 힘을 키우려면 그림이 많고 짧은 동화부터 한 권씩 섞어 봐요. 추천 책에 '징검다리' 표시가 붙은 책이 그런 책이에요.</li>`;
+  if(R.comicHeavy)fmtMsg+=`<li><b>학습만화 비중이 높아요.</b> 만화로 생긴 관심을 같은 주제의 글책으로 이어 가 보세요. 예를 들어 Why? 과학을 좋아하면 『수학식당』, 『신기한 스쿨버스』로 넘어가기 좋아요.</li>`;
+  const summary=`[독서 잔고 진단] ${nm} (${S.grade}학년)
+독서 유형: ${R.fav.type} (${R.fav.name})
+골고루 지수: ${R.balance}점 — ${balWord}
+기준: ${srcText}
+${AREAS.map(a=>`- ${a.name}: ${R.hasPref?`좋아함 ${R.pref[a.id]} / `:''}실제 ${R.actual[a.id]} → ${ST[R.status(a.id)][0]}`).join('\n')}
+채워야 할 영역: ${R.lacking.map(a=>a.name).join(', ')}
+추천: ${[...used].map(t=>`『${t}』`).join(', ')}`;
+  v.innerHTML=`${S.ledgerUsed&&S.example&&R.source==='ledger'?`<div class="banner">지금은 <b>예시 독서통장</b>으로 만든 결과예요. 독서통장 분석 탭에서 실제 제목을 넣으면 바뀌어요.</div>`:''}
+  <div class="hero">
+    <div style="display:grid;gap:12px">
+      <div class="eyebrow">${esc(nm)} · ${S.grade}학년 · ${R.hasPref?'좋아하는 영역 기준':'많이 읽은 영역 기준'}</div>
+      <h2 class="type"><span class="type-stamp">${R.fav.type}</span></h2>
+      <p>${R.fav.desc} 가장 끌리는 영역은 <b>${R.fav.name}</b>이에요.</p>
+      <div class="meter"><div class="row" style="justify-content:space-between"><span class="small">골고루 지수</span><span style="font-family:var(--f-data)">${R.balance} / 100</span></div>
+        <div class="bar"><i style="width:${R.balance}%;background:${R.balance>=80?'var(--good)':R.balance>=55?'var(--amber)':'var(--stamp)'}"></i></div>
+        <span class="small muted">${balWord} · 기준: ${srcText}</span></div>
+    </div>
+    <div class="radar">${radar([{vals:R.hasPref?R.pref:null,color:'var(--teal)',dash:true},{vals:R.actual,color:'var(--stamp)'}])}
+      <div class="legend">${R.hasPref?`<span style="--c:var(--teal)">좋아하는 마음</span>`:''}<span style="--c:var(--stamp)">실제로 읽은 양</span></div></div>
+  </div>
+  <hr>
+  <div class="group"><h3>영역별 잔고</h3>
+    <div class="ledger-wrap"><table><thead><tr><th>영역</th>${R.hasPref?'<th>좋아하는 마음</th>':''}<th>실제로 읽은 양</th>${R.source==='ledger'?'<th style="text-align:right">권</th>':''}<th>잔고</th></tr></thead><tbody>
+    ${AREAS.map(a=>`<tr><td style="white-space:nowrap"><span class="dot" style="--c:${a.c}"></span>${a.name}</td>
+      ${R.hasPref?`<td><div class="mini p"><i style="width:${R.pref[a.id]}%"></i></div></td>`:''}
+      <td><div class="mini a"><i style="width:${R.actual[a.id]}%"></i></div></td>
+      ${R.source==='ledger'?`<td class="num">${R.raw[a.id]}</td>`:''}
+      <td><span class="stamp ${ST[R.status(a.id)][1]}">${ST[R.status(a.id)][0]}</span></td></tr>`).join('')}
+    </tbody></table></div></div>
+  <div class="group"><h3>진단</h3><ul class="diag" style="margin:0;padding:0">
+    <li>${R.relative?`크게 바닥난 영역은 없어요. 그래도 <b>${R.lacking.map(a=>a.name).join(', ')}</b>은(는) 다른 영역보다 적게 읽었어요.`:`<b>${R.lacking.map(a=>a.name).join(', ')}</b> 영역의 잔고가 부족해요.`}</li>
+    ${R.hasPref?R.lacking.filter(a=>R.pref[a.id]>=50).map(a=>`<li><b>${a.name}</b>은(는) 좋아하는 마음은 있는데 아직 손이 덜 갔어요. 가장 쉽게 채울 수 있는 영역이에요.</li>`).join(''):''}
+    ${R.hasPref?R.lacking.filter(a=>R.pref[a.id]<50).map(a=>`<li><b>${a.name}</b>은(는) 아직 낯선 영역이에요. 좋아하는 ${R.fav.name}와 이어지는 책부터 시작하면 덜 어려워요.</li>`).join(''):''}
+    ${fmtMsg}
+    ${R.fmtShare?`<li class="muted small">책 형태: 그림책 ${R.fmtShare.pic}% · 만화 ${R.fmtShare.com}% · 글책 ${R.fmtShare.text}% (형태를 아는 책 기준)</li>`:''}
+  </ul></div>
+  <hr>
+  <div class="group"><div class="eyebrow">처방전 · ${BAND_NAME[bandOf(S.grade)]} 기준</div><h2>이번 달에 읽어 볼 책</h2></div>
+  ${lackHtml}
+  ${lvl.length?`<div class="group"><h3><span class="dot" style="--c:${R.fav.c}"></span>${R.fav.name} 레벨 업</h3><div class="books">${lvl.map(bookCard).join('')}</div></div>`:''}
+  <p class="muted small">추천 목록은 대표적인 어린이 책 예시예요. 학교 도서관 소장 여부를 확인해 주세요.</p>
+  <div class="row"><button class="btn" id="copy">결과 복사</button><span class="small muted" id="copied"></span></div>
+  <textarea id="sumText" readonly hidden>${esc(summary)}</textarea>`;
+  $('#copy').onclick=()=>{const t=$('#sumText');navigator.clipboard?.writeText(summary).then(()=>{$('#copied').textContent='복사했어요. 기록장에 붙여 넣으세요.'}).catch(()=>{t.hidden=false;t.select();$('#copied').textContent='아래 글을 선택해 복사하세요.'})??(t.hidden=false,t.select())};
+}
+
+/* ---------- 04 추천 책장 ---------- */
+function renderShelf(){
+  const v=$('#v-shelf');const b=S.shelfBand,ar=S.shelfArea;
+  const list=BOOKS.filter(x=>x.rec!==0&&x.band===b&&(ar==='all'||x.a===ar||x.a2===ar));
+  v.innerHTML=`<div class="eyebrow">추천 책장</div><h2>학년별 · 영역별 추천 책</h2>
+  <div class="filters"><div class="row">${['저','중','고'].map(k=>`<button class="chipbtn${b===k?' on':''}" data-b="${k}">${BAND_NAME[k]}</button>`).join('')}</div>
+  <div class="row"><button class="chipbtn${ar==='all'?' on':''}" data-a="all">전체</button>${AREAS.map(a=>`<button class="chipbtn${ar===a.id?' on':''}" data-a="${a.id}"><span class="dot" style="--c:${a.c}"></span>${a.name}</button>`).join('')}</div></div>
+  ${list.length?`<div class="books">${list.map(x=>bookCard({b:x,reasons:x.br?['징검다리 책']:[]})).join('')}</div>`:`<p class="muted">이 학년·영역에 해당하는 책이 목록에 아직 없어요. 옆 학년 책장을 확인해 보세요.</p>`}
+  <p class="muted small">'징검다리 책'은 그림이 많고 글이 짧아 그림책만 읽던 친구가 글책으로 넘어가기 좋은 책이에요.</p>`;
+  v.querySelectorAll('[data-b]').forEach(x=>x.onclick=()=>{S.shelfBand=x.dataset.b;renderShelf()});
+  v.querySelectorAll('[data-a]').forEach(x=>x.onclick=()=>{S.shelfArea=x.dataset.a;renderShelf()});
+}
+
+/* 시작: 예시 독서통장은 미리 분석해 둠 */
+S.rows=parseTitles(EXAMPLE);S.ledgerUsed=true;enableResult();
+renderTest();renderLedger();
+</script>
+
+</body>
+</html>
